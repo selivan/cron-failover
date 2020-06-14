@@ -3,6 +3,7 @@
 * [x] logging - use stderr
 * [x] touch flag file if server is primary and delete if when is not primary
 * [x] manual switch to become a primary server
+* [x] remove flag file if server is not primary
 * [ ] Use hostname + IP instead of just hostname
 * [ ] strict mode: kill command if failed to update lock in redis. --stop-command-on-redis-fail
   * --stop-signal

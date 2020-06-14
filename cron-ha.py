@@ -131,6 +131,12 @@ if __name__ == '__main__':
                             logging.error(str(e))
                 else:
                     logging.debug('Key value does not point to this server as primary')
+                    try:
+                        if os.path.exists(conf.flag_file_is_primary):
+                            logging.debug('Removing flag file ' + conf.flag_file_is_primary)
+                            os.remove(conf.flag_file_is_primary)
+                    except Exception as e:
+                        pass
                 logging.debug('Sleeping')
                 time.sleep(conf.timeout_sec*0.8)
                 redis_conn.close()

@@ -6,7 +6,7 @@ Uses single Redis instance to keep locks. Of course it should be also fault-tole
 
 Flag file indicating that server is primary is created and timestamp is periodically updated. You can use it to remove the primary server from balancer, for example.
 
-# Usage
+## Config
 
 `cron-ha.yml`:
 
@@ -23,11 +23,13 @@ lock_key_prefix: 'cron:lock:'
 flag_file_is_primary: /tmp/cron-ha-primary-flag
 ```
 
+## Usage
+
 Start on each server:
 
 `python cron-ha.py --config cron-ha.yml --cycle-try-get-primary-lock`
 
-First server that gets lock in redis will become primary. On that server file `/tmp/cron-ha-primary-flag` will be created and it's modification time will be updated every `timeout_sec`.
+First server that gets the lock in redis will become primary. On that server file `/tmp/cron-ha-primary-flag` will be created if not exist and it's modification time will be updated every `timeout_sec`.
 
 Now add to each server crontab or systemd timer:
 
@@ -38,6 +40,8 @@ The command will run only on primary server. Script exit code will be the same a
 Run this on another server to switch it to primary:
 
 `python cron-ha.py --config cron-ha.yml --force-get-primary-lock`
+
+That server will become primary. Flag file will be created on it and deleted on old server. Command will not start on the new server before command with the same `--lock-key` on the old server finishes and releases the lock.
 
 Use `--debug` option to see in details what's going on.
 
