@@ -4,7 +4,7 @@ Use case: you have several application servers, one of them is dedicated for run
 
 Uses single Redis instance to keep locks. Of course it should be also fault-tolerant. Can use [sentinels](https://redis.io/topics/sentinel) to connect to Redis.
 
-Flag file indicating that server is primary is created and its timestamp is periodically updated. File is removed when server becomes non-primary. You can use it to remove the primary server from balancer, for example.
+Flag file indicating that server is primary is created and its timestamp is periodically updated. File is removed when server becomes non-primary. You can use it to remove the primary server from application balancer, for example.
 
 ## Config
 
