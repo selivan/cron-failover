@@ -5,8 +5,8 @@
 * [x] manual switch to become a primary server
 * [x] remove flag file if server is not primary
 * [x] Use hostname + IP instead of just hostname
-* [ ] strict mode: kill command if failed to update lock in redis. --stop-command-on-redis-fail
+* [x] strict mode: kill command if failed to update lock in redis. --stop-command-on-redis-fail
   * --stop-signal
   * --stop-timeout-sec
   * --kill-signal (not necessary, always SIGKILL)
-* [ ] refactor: move common things to functions
+* [x] refactor: move common things to functions

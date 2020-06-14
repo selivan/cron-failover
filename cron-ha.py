@@ -4,10 +4,10 @@ import argparse
 import time
 import logging
 import sys
-import os
 import os.path
 import socket
-from subprocess import Popen, PIPE
+from subprocess import Popen, TimeoutExpired
+import signal
 
 import yaml
 import redis
@@ -39,6 +39,12 @@ def get_cmdline_args():
                         help='Get primary lock for this server.')
     parser.add_argument('--command', help='Run this command holding lock in redis. Exit code is the same as command exit code.')
     parser.add_argument('--lock-key', help='Unique key used for this command lock')
+    parser.add_argument('--stop-command-on-lock-fail', action='store_true', default=False,
+                        help='Strict mode: stop command if failed to check the lock in redis')
+    parser.add_argument('--stop-signal', type=int, default=15, help='Signal to stop command. Default: 15(SIGTERM)')
+    parser.add_argument('--stop-timeout-sec', type=int, default=1,
+                        help='Timeout to wait for command to stop command. Default: 1')
+    parser.add_argument('--kill-signal', type=int, default=9, help='Signal to kill command. Default: 9(SIGKILL)')
     return parser.parse_args()
 
 def get_config(config_file_path, default_config_dict):
@@ -200,7 +206,18 @@ if __name__ == '__main__':
                         try:
                             redis_conn.set(name=lock_key_name, value=get_system_id(), ex=conf.timeout_sec)
                         except redis.RedisError:
-                            pass
+                            if args.stop_command_on_lock_fail:
+                                logging.error('Failed to update lock in redis, strict mode: terminating command with signal ' + str(args.stop_signal))
+                                process.send_signal(args.stop_signal)
+                                try:
+                                    process.wait(timeout=args.stop_timeout_sec)
+                                except TimeoutExpired as e:
+                                    logging.error('Command did not stop after timeout ' + str(args.stop_timeout_sec))
+                                    logging.error('Trying to kill it with signal ' + str(args.kill_signal))
+                                    process.send_signal(args.kill_signal)
+                                sys.exit(process.returncode)
+                            else:
+                                logging.error('Failed to update lock in redis, not a strict mode: continue')
                         time.sleep(conf.timeout_sec * 0.8)
             else:
                 logging.debug('Lock key ' + lock_key_name + ' exists in redis, not starting command')

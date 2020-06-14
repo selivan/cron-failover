@@ -25,24 +25,30 @@ flag_file_is_primary: /tmp/cron-ha-primary-flag # this file is created and updat
 
 ## Usage
 
-Start on each server:
+Note: `--debug` option allows to see in details what's going on.
+
+### Starting
 
 `python cron-ha.py --config cron-ha.yml --cycle-try-get-primary-lock`
 
 First server that gets the lock in redis will become primary. On that server file `/tmp/cron-ha-primary-flag` will be created if not exist and it's modification time will be updated every `timeout_sec`.
 
-Now add to each server crontab or systemd timer:
+### Running commands/jobs
+
+Add to each server crontab or systemd timer:
 
 `python cron-ha.py --config cron-ha.yml --command 'foo --bar --baz' --lock-key foo-bar-baz`
 
 The command will run only on primary server. Script exit code will be the same as command exit code.
 
-Run this on another server to switch it to primary:
+If redis becomes unavailable, for example server got offline, command will continue running. If you want to stop the command in that case, use these options:
+
+`python cron-ha.py --config cron-ha.yml --command 'foo --bar --baz' --lock-key foo-bar-baz --stop-command-on-lock-fail --stop-signal 15 --stop-timeout-sec 30 --kill-signal 9` 
+
+### Force server to become primary
 
 `python cron-ha.py --config cron-ha.yml --force-get-primary-lock`
 
 That server will become primary. Flag file will be created on it and deleted on old server. Command will not start on the new server before command with the same `--lock-key` on the old server finishes and releases the lock.
-
-Use `--debug` option to see in details what's going on.
 
 **P.S.** If this code is useful for you - don't forget to put a star on it's [github repo](https://github.com/selivan/cron-failover).
