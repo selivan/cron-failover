@@ -43,8 +43,9 @@ def get_cmdline_args():
                         help='Strict mode: stop command if failed to check the lock in redis')
     parser.add_argument('--stop-signal', type=int, default=15, help='Signal to stop command. Default: 15(SIGTERM)')
     parser.add_argument('--stop-timeout-sec', type=int, default=1,
-                        help='Timeout to wait for command to stop command. Default: 1')
-    parser.add_argument('--kill-signal', type=int, default=9, help='Signal to kill command. Default: 9(SIGKILL)')
+                        help='Timeout to wait for command to stop. Default: 1')
+    parser.add_argument('--kill-signal', type=int, default=9,
+                        help='Signal to kill command if it did not stop. Default: 9(SIGKILL)')
     return parser.parse_args()
 
 def get_config(config_file_path, default_config_dict):
