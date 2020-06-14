@@ -41,9 +41,12 @@ if __name__ == '__main__':
     conf = ObjectView(conf)
 
     if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
+        log_level = logging.DEBUG
     else:
-        logging.basicConfig(level=logging.INFO)
+        log_level = logging.INFO
+    logging.basicConfig(level=log_level,
+                        format='%(asctime)s %(levelname)s %(message)s',  # ISO 8601 time format
+                        datefmt='%Y-%m-%dT%H:%M:%S%z')
 
     if len(conf.sentinels) != 0:
         # support for IPv6 addresses: {::1}:6379
