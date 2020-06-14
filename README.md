@@ -27,11 +27,11 @@ lock_key_prefix: 'cron:lock:'
 
 Start on each server:
 
-`python cron-ha.py --hold-primary-lock`
+`python cron-ha.py --config cron-ha.yml --hold-primary-lock`
 
 First server to start this command will become primary. Now add to each server crontab or systemd times:
 
-`python cron-ha.py --command 'foo --bar --baz' --lock-key sleep`
+`python cron-ha.py --config cron-ha.yml --command 'foo --bar --baz' --lock-key sleep`
 
 The command will run only on primary server. Script exit code will be the same as command exit code.
 
