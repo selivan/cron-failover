@@ -2,7 +2,7 @@
 
 Use case: you have several application servers, one of them is dedicated for running cron jobs. If that server fails, another should get that role. Also, if command is already running on the old server, it should not be started on the new one.
 
-Uses single Redis instance to keep locks. Of course it should be also fault-tolerant. Can use [sentinels](https://redis.io/topics/sentinel) to connect to Redis.
+Uses single Redis instance to keep locks. Of course it should be also fault-tolerant, using [replication](https://redis.io/topics/replication) with [sentinels](https://redis.io/topics/sentinel). Script can use sentinels to connect to Redis(recommended way to connect to fault-tolerant Redis setup).
 
 Flag file indicating that server is primary is created and its timestamp is periodically updated. File is removed when server becomes non-primary. You can use it to remove the primary server from application balancer, for example.
 
