@@ -8,6 +8,23 @@ Flag file indicating that server is primary is created and timestamp is periodic
 
 # Example
 
+Configuration:
+
+`cron-ha.yml`:
+
+```yaml
+sentinels:
+  - 'redis1:26379'
+  - 'redis2:26379'
+  - 'redis3:26379'
+sentinel_master_name: mymaster
+redis_db_num: 0
+timeout_sec: 5
+server_key_name: 'cron:server_name'
+lock_key_prefix: 'cron:lock:'
+
+```
+
 Start on each server:
 
 `python cron-ha.py --hold-primary-lock`
