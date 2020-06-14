@@ -24,29 +24,38 @@ default_config = {
     'flag_file_is_primary': None
 }
 
+
 class ObjectView(object):
     def __init__(self, d):
         self.__dict__ = d
 
+
 def get_cmdline_args():
     """Parse command line arguments and return namespace"""
-    parser = argparse.ArgumentParser(description="Run commands only on selected server, with failover to new if old one became offline. After switching servers new command will not run until the old one is working and holding lock. Uses locks in a single redis instance. Can use sentinels to connect to redis.")
-    parser.add_argument('--config', default='cron-ha.yml', help='Configuration in yaml format. Default: cron-ha.yml')
-    parser.add_argument('--debug', action='store_true', default=False, help='Print debug messages')
+    parser = argparse.ArgumentParser(
+        description="Run commands only on selected server, with failover to new if old one became offline. After switching servers new command will not run until the old one is working and holding lock. Uses locks in a single redis instance. Can use sentinels to connect to redis.")
+    parser.add_argument('--config', default='cron-ha.yml',
+                        help='Configuration in yaml format. Default: cron-ha.yml')
+    parser.add_argument('--debug', action='store_true',
+                        default=False, help='Print debug messages')
     parser.add_argument('--cycle-try-get-primary-lock', action='store_true', default=False,
                         help='Run daemon holding lock in redis saying this server should be used to run commands. If redis connection fails it infinitely tries to reconnect and get lock.')
     parser.add_argument('--force-get-primary-lock', action='store_true', default=False,
                         help='Get primary lock for this server.')
-    parser.add_argument('--command', help='Run this command holding lock in redis. Exit code is the same as command exit code.')
-    parser.add_argument('--lock-key', help='Unique key used for this command lock')
+    parser.add_argument(
+        '--command', help='Run this command holding lock in redis. Exit code is the same as command exit code.')
+    parser.add_argument(
+        '--lock-key', help='Unique key used for this command lock')
     parser.add_argument('--stop-command-on-lock-fail', action='store_true', default=False,
                         help='Strict mode: stop command if failed to check the lock in redis')
-    parser.add_argument('--stop-signal', type=int, default=15, help='Signal to stop command. Default: 15(SIGTERM)')
+    parser.add_argument('--stop-signal', type=int, default=15,
+                        help='Signal to stop command. Default: 15(SIGTERM)')
     parser.add_argument('--stop-timeout-sec', type=int, default=1,
                         help='Timeout to wait for command to stop. Default: 1')
     parser.add_argument('--kill-signal', type=int, default=9,
                         help='Signal to kill command if it did not stop. Default: 9(SIGKILL)')
     return parser.parse_args()
+
 
 def get_config(config_file_path, default_config_dict):
     """Return object with configuration values in attributes:
@@ -57,13 +66,16 @@ def get_config(config_file_path, default_config_dict):
 
     # support for IPv6 addresses: ::1:6379
     if len(conf['sentinels']) != 0:
-        sentinels = list((''.join(i.split(':')[0:-1]), int(i.split(':')[-1])) for i in conf['sentinels'])
+        sentinels = list(
+            (''.join(i.split(':')[0:-1]), int(i.split(':')[-1])) for i in conf['sentinels'])
         conf['sentinels'] = sentinels
         conf['redis_host'], conf['redis_port'] = None, None
     else:
-        conf['redis_host'], conf['redis_port'] = ''.join(conf.redis.split(':')[0:-1]), int(conf.redis.split(':')[-1])
+        conf['redis_host'], conf['redis_port'] = ''.join(
+            conf.redis.split(':')[0:-1]), int(conf.redis.split(':')[-1])
         conf['sentinels'] = None
     return ObjectView(conf)
+
 
 def get_redis_connection(sentinels=None, host=None, port=None, db_num=0):
     """ Connect to redis using sentinels if defined or directly using given host and port.
@@ -77,8 +89,10 @@ def get_redis_connection(sentinels=None, host=None, port=None, db_num=0):
         logging.debug('Asking sentinels for master address')
         sentinel_conn = Sentinel(sentinels, socket_timeout=0.2)
         host, port = sentinel_conn.discover_master(conf.sentinel_master_name)
-    logging.debug('Connecting to redis at ' + str(host) + ':' + str(port) + ' db=' + str(db_num))
+    logging.debug('Connecting to redis at ' + str(host) +
+                  ':' + str(port) + ' db=' + str(db_num))
     return redis.Redis(host=host, port=port, db=db_num)
+
 
 def get_system_id():
     """ Return concatenated hostname and IPv4/IPv6 addresses used for default route.
@@ -104,26 +118,31 @@ def get_system_id():
 
 if __name__ == '__main__':
     args = get_cmdline_args()
-    conf = get_config(config_file_path=args.config, default_config_dict=default_config)
+    conf = get_config(config_file_path=args.config,
+                      default_config_dict=default_config)
 
     log_level = logging.DEBUG if args.debug else logging.INFO
     logging.basicConfig(level=log_level,
-                        format='%(asctime)s %(levelname)s %(message)s',  # ISO 8601 time format
+                        format='%(asctime)s %(levelname)s %(message)s',
+                        # ISO 8601 time format
                         datefmt='%Y-%m-%dT%H:%M:%S%z',
                         stream=sys.stderr)
 
     if args.force_get_primary_lock:
         try:
-            redis_conn = get_redis_connection(sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
+            redis_conn = get_redis_connection(
+                sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
         except redis.RedisError:
             logging.debug('Failed to connect to Redis, sleeping')
             time.sleep(conf.timeout_sec)
 
-        logging.debug('Force set key value to current system id with expiration')
+        logging.debug(
+            'Force set key value to current system id with expiration')
         # https://redis.io/commands/set
         # nx    do not set value if already set
         # ex    expire time in seconds
-        redis_conn.set(name=conf.server_key_name, value=get_system_id(), nx=False, ex=conf.timeout_sec)
+        redis_conn.set(name=conf.server_key_name,
+                       value=get_system_id(), nx=False, ex=conf.timeout_sec)
         redis_conn.close()
         # NOTE: script will not fail if flag_file is not updated
         try:
@@ -141,38 +160,48 @@ if __name__ == '__main__':
             # Not doing this before because hostname may change while the program is running
             system_id = get_system_id()
             try:
-                redis_conn = get_redis_connection(sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
+                redis_conn = get_redis_connection(
+                    sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
             except redis.RedisError:
                 logging.debug('Failed to connect to Redis, sleeping')
                 time.sleep(conf.timeout_sec)
                 continue
             try:
-                logging.debug('Trying to set key value to current system id with expiration if key does not exist')
+                logging.debug(
+                    'Trying to set key value to current system id with expiration if key does not exist')
                 # https://redis.io/commands/set
                 # nx    do not set value if already set
                 # ex    expire time in seconds
-                redis_conn.set(name=conf.server_key_name, value=system_id, nx=True, ex=conf.timeout_sec)
+                redis_conn.set(name=conf.server_key_name,
+                               value=system_id, nx=True, ex=conf.timeout_sec)
                 if redis_conn.get(name=conf.server_key_name).decode('utf-8') == system_id:
-                    logging.debug('Key value equals current system id, updating lock expiration period')
-                    redis_conn.expire(name=conf.server_key_name, time=conf.timeout_sec)
+                    logging.debug(
+                        'Key value equals current system id, updating lock expiration period')
+                    redis_conn.expire(
+                        name=conf.server_key_name, time=conf.timeout_sec)
                     if conf.flag_file_is_primary is not None:
-                        logging.debug('Key value equals current system id, updating modification time for flag file ' + conf.flag_file_is_primary)
+                        logging.debug(
+                            'Key value equals current system id, updating modification time for flag file ' + conf.flag_file_is_primary)
                         # NOTE: script will not fail if flag_file is not updated
                         try:
                             if os.path.exists(conf.flag_file_is_primary):
                                 os.utime(conf.flag_file_is_primary)
                             else:
-                                flag_file = open(conf.flag_file_is_primary, 'w')
+                                flag_file = open(
+                                    conf.flag_file_is_primary, 'w')
                                 flag_file.write('')
                                 flag_file.close()
                         except Exception as e:
-                            logging.error('Failed to update flag file modification time')
+                            logging.error(
+                                'Failed to update flag file modification time')
                             logging.error(str(e))
                 else:
-                    logging.debug('Key value does not point to this server as primary')
+                    logging.debug(
+                        'Key value does not point to this server as primary')
                     try:
                         if os.path.exists(conf.flag_file_is_primary):
-                            logging.debug('Removing flag file ' + conf.flag_file_is_primary)
+                            logging.debug('Removing flag file ' +
+                                          conf.flag_file_is_primary)
                             os.remove(conf.flag_file_is_primary)
                     except Exception as e:
                         pass
@@ -185,7 +214,8 @@ if __name__ == '__main__':
         system_id = get_system_id()
         lock_key_name = conf.lock_key_prefix + args.lock_key
         try:
-            redis_conn = get_redis_connection(sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
+            redis_conn = get_redis_connection(
+                sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
         except redis.RedisError:
             logging.debug('Failed to connect to Redis')
             raise
@@ -202,29 +232,37 @@ if __name__ == '__main__':
                         redis_conn.close()
                         sys.exit(process.returncode)
                     else:
-                        logging.debug('Process still running, reset lock expiration time and sleep')
+                        logging.debug(
+                            'Process still running, reset lock expiration time and sleep')
                         # Do not stop if failed to reset lock expiration time
                         try:
-                            redis_conn.set(name=lock_key_name, value=get_system_id(), ex=conf.timeout_sec)
+                            redis_conn.set(
+                                name=lock_key_name, value=get_system_id(), ex=conf.timeout_sec)
                         except redis.RedisError:
                             if args.stop_command_on_lock_fail:
-                                logging.error('Failed to update lock in redis, strict mode: terminating command with signal ' + str(args.stop_signal))
+                                logging.error(
+                                    'Failed to update lock in redis, strict mode: terminating command with signal ' + str(args.stop_signal))
                                 process.send_signal(args.stop_signal)
                                 try:
                                     process.wait(timeout=args.stop_timeout_sec)
                                 except TimeoutExpired as e:
-                                    logging.error('Command did not stop after timeout ' + str(args.stop_timeout_sec))
-                                    logging.error('Trying to kill it with signal ' + str(args.kill_signal))
+                                    logging.error(
+                                        'Command did not stop after timeout ' + str(args.stop_timeout_sec))
+                                    logging.error(
+                                        'Trying to kill it with signal ' + str(args.kill_signal))
                                     process.send_signal(args.kill_signal)
                                 sys.exit(process.returncode)
                             else:
-                                logging.error('Failed to update lock in redis, not a strict mode: continue')
+                                logging.error(
+                                    'Failed to update lock in redis, not a strict mode: continue')
                         time.sleep(conf.timeout_sec * 0.8)
             else:
-                logging.debug('Lock key ' + lock_key_name + ' exists in redis, not starting command')
+                logging.debug('Lock key ' + lock_key_name +
+                              ' exists in redis, not starting command')
                 redis_conn.close()
         else:
-            logging.warning('Key ' + conf.server_key_name + ' does not match, not a primary server, so not doing anything')
+            logging.warning('Key ' + conf.server_key_name +
+                            ' does not match, not a primary server, so not doing anything')
             redis_conn.close()
     else:
         logging.error('Incorrect options. Check --help')
