@@ -2,7 +2,7 @@
 
 Use case: you have several application servers, one of them is dedicated for running cron jobs. If that server fails, another should get that role. Also, if command is already running on the old server, it should not be started on the new one.
 
-Uses [redis](https://redis.io) for keeping locks. To make sense this redis should be also fault-tolerant. Can use redis [sentinels](https://redis.io/topics/sentinel) to connect to redis.
+Uses [redis](https://redis.io) for keeping locks. Of course, this redis instance should be also fault-tolerant. Can use [sentinels](https://redis.io/topics/sentinel) to connect to redis.
 
 Flag file indicating that server is primary is created and timestamp is periodically updated. You can use it to remove the primary server from balancer, for example.
 
