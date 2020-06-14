@@ -29,7 +29,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run commands only on selected server, with failover to new if old one became offline. After switching servers new command will not run until the old one is working and holding lock. Uses locks in a single redis instance. Can use sentinels to connect to redis.")
     parser.add_argument('--config', default='cron-ha.yml', help='Configuration in yaml format.')
     parser.add_argument('--debug', action='store_true', default=False, help='Print debug messages')
-    parser.add_argument('--hold-master-lock', action='store_true', default=False, help='Run daemon holding lock in redis saying this server should be used to run commands. If redis connection fails it infinitely tries to reconnect.')
+    parser.add_argument('--hold-primary-lock', action='store_true', default=False, help='Run daemon holding lock in redis saying this server should be used to run commands. If redis connection fails it infinitely tries to reconnect and get lock.')
     parser.add_argument('--command', help='Run this command holding lock in redis. Exit code is the same as command exit code.')
     parser.add_argument('--lock-key', help='Unique key used for this command lock')
     args = parser.parse_args()
@@ -51,7 +51,7 @@ if __name__ == '__main__':
     else:
         redis_host, redis_port = ''.join(conf.redis.split(':')[0:-1]), int(conf.redis.split(':')[-1])
 
-    if args.hold_master_lock:
+    if args.hold_primary_lock:
         while True:
             # Not doing this before because hostname may change while the program is running
             hostname = gethostname()
@@ -120,5 +120,5 @@ if __name__ == '__main__':
             logging.warning('Key ' + conf.server_key_name + ' does not match, not a primary server, so not doing anything')
     else:
         parser.print_help()
-        logging.error('Should use one of --hold-master-lock or --command and --lock-key')
+        logging.error('Should use one of --hold-primary-lock or --command and --lock-key')
         sys.exit(1)
