@@ -8,8 +8,6 @@ Flag file indicating that server is primary is created and timestamp is periodic
 
 # Example
 
-Configuration:
-
 `cron-ha.yml`:
 
 ```yaml
