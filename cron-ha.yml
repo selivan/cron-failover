@@ -1,0 +1,8 @@
+# redis: '127.0.0.1:6379'
+sentinels:
+  - '127.0.0.1:26379'
+sentinel_master_name: mymaster
+redis_db_num: 0
+timeout_sec: 5
+server_key_name: 'cron:server_name'
+lock_key_prefix: 'cron:lock:'
