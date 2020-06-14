@@ -209,7 +209,8 @@ if __name__ == '__main__':
                 time.sleep(conf.timeout_sec*0.8)
                 redis_conn.close()
             except redis.RedisError:
-                pass
+                logging.error('Failed to update key in redis. Sleeping before next try.')
+                time.sleep(conf.timeout_sec * 0.8)
     elif hasattr(args, 'command') and hasattr(args, 'lock_key'):
         system_id = get_system_id()
         lock_key_name = conf.lock_key_prefix + args.lock_key
