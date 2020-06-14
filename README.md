@@ -27,9 +27,9 @@ Start on each server:
 
 `python cron-ha.py --config cron-ha.yml --hold-primary-lock`
 
-First server that gets lock in redis will become primary. Now add to each server crontab or systemd times:
+First server that gets lock in redis will become primary. Now add to each server crontab or systemd timer:
 
-`python cron-ha.py --config cron-ha.yml --command 'foo --bar --baz' --lock-key sleep`
+`python cron-ha.py --config cron-ha.yml --command 'foo --bar --baz' --lock-key foo-bar-baz`
 
 The command will run only on primary server. Script exit code will be the same as command exit code.
 
