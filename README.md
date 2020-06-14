@@ -20,4 +20,4 @@ The command will run only on primary server. Script exit code will be the same a
 
 Use `--debug` option to see in details what's going on.
 
-P.S. If this code is useful for you - don't forget to put a star on it's [github repo](https://github.com/selivan/cron-failover).
+**P.S.** If this code is useful for you - don't forget to put a star on it's [github repo](https://github.com/selivan/cron-failover).
