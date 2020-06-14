@@ -2,6 +2,7 @@
 * [ ] logging - use something instead of 'root', probably script filename
 * [ ] logging - use stderr  
 * [ ] touch flag file if server is primary and delete if when is not primary
+* [ ] Use hostname + IP instead of just hostname
 * [ ] strict mode: kill command if failed to update lock in redis. --stop-command-on-redis-fail
   * --stop-signal
   * --stop-timeout-sec
