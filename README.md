@@ -6,3 +6,4 @@ Uses redis for locks. To make sense this redis should be also fault-tolerant. Ca
 
 Flag file indicating that server is primary is created and timestamp is perioducally updated. You can use it to remove the primary server from balancer, for example.
 
+P.S. If this code is useful for you - don't forget to put a star on it's [github repo](https://github.com/selivan/cron-failover).
