@@ -6,7 +6,7 @@ Uses single Redis instance to keep locks. Of course it should be also fault-tole
 
 Flag file indicating that server is primary is created and timestamp is periodically updated. You can use it to remove the primary server from balancer, for example.
 
-# Example
+# Usage
 
 `cron-ha.yml`:
 
