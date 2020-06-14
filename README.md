@@ -17,10 +17,10 @@ sentinels:
   - 'redis3:26379'
 sentinel_master_name: mymaster
 redis_db_num: 0
-timeout_sec: 5
+timeout_sec: 5 # expiration time for primary server lock and command lock
 server_key_name: 'cron:server_name'
 lock_key_prefix: 'cron:lock:'
-flag_file_is_primary: /tmp/cron-ha-primary-flag
+flag_file_is_primary: /tmp/cron-ha-primary-flag # this file is created and updated on primary server and deleted on non-primary
 ```
 
 ## Usage

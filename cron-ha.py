@@ -28,8 +28,37 @@ class ObjectView(object):
     def __init__(self, d):
         self.__dict__ = d
 
+def get_cmdline_args():
+    """Parse command line arguments and return namespace"""
+    parser = argparse.ArgumentParser(description="Run commands only on selected server, with failover to new if old one became offline. After switching servers new command will not run until the old one is working and holding lock. Uses locks in a single redis instance. Can use sentinels to connect to redis.")
+    parser.add_argument('--config', default='cron-ha.yml', help='Configuration in yaml format. Default: cron-ha.yml')
+    parser.add_argument('--debug', action='store_true', default=False, help='Print debug messages')
+    parser.add_argument('--cycle-try-get-primary-lock', action='store_true', default=False,
+                        help='Run daemon holding lock in redis saying this server should be used to run commands. If redis connection fails it infinitely tries to reconnect and get lock.')
+    parser.add_argument('--force-get-primary-lock', action='store_true', default=False,
+                        help='Get primary lock for this server.')
+    parser.add_argument('--command', help='Run this command holding lock in redis. Exit code is the same as command exit code.')
+    parser.add_argument('--lock-key', help='Unique key used for this command lock')
+    return parser.parse_args()
+
+def get_config(config_file_path, default_config_dict):
+    """Return object with configuration values in attributes:
+        conf.debug instead conf['debug']"""
+    conf = default_config_dict
+    with open(config_file_path, 'r') as config_file:
+        conf.update(yaml.safe_load(config_file))
+
+    # support for IPv6 addresses: ::1:6379
+    if len(conf['sentinels']) != 0:
+        sentinels = list((''.join(i.split(':')[0:-1]), int(i.split(':')[-1])) for i in conf['sentinels'])
+        conf['sentinels'] = sentinels
+        conf['redis_host'], conf['redis_port'] = None, None
+    else:
+        conf['redis_host'], conf['redis_port'] = ''.join(conf.redis.split(':')[0:-1]), int(conf.redis.split(':')[-1])
+        conf['sentinels'] = None
+    return ObjectView(conf)
+
 def get_redis_connection(sentinels=None, host=None, port=None, db_num=0):
-    print(host, port, sentinels, db_num)
     """ Connect to redis using sentinels if defined or directly using given host and port.
         :arg sentinels  list of tuples (host, port)
         :arg host   redis host
@@ -67,48 +96,23 @@ def get_system_id():
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Run commands only on selected server, with failover to new if old one became offline. After switching servers new command will not run until the old one is working and holding lock. Uses locks in a single redis instance. Can use sentinels to connect to redis.")
-    parser.add_argument('--config', default='cron-ha.yml', help='Configuration in yaml format. Default: cron-ha.yml')
-    parser.add_argument('--debug', action='store_true', default=False, help='Print debug messages')
-    parser.add_argument('--cycle-try-get-primary-lock', action='store_true', default=False,
-                        help='Run daemon holding lock in redis saying this server should be used to run commands. If redis connection fails it infinitely tries to reconnect and get lock.')
-    parser.add_argument('--force-get-primary-lock', action='store_true', default=False,
-                        help='Get primary lock for this server.')
-    parser.add_argument('--command', help='Run this command holding lock in redis. Exit code is the same as command exit code.')
-    parser.add_argument('--lock-key', help='Unique key used for this command lock')
-    args = parser.parse_args()
+    args = get_cmdline_args()
+    conf = get_config(config_file_path=args.config, default_config_dict=default_config)
 
-    conf = default_config
-    with open(args.config, 'r') as config_file:
-        conf.update(yaml.safe_load(config_file))
-    # Convenience: conf.debug instead of conf['debug']
-    conf = ObjectView(conf)
-
-    if args.debug:
-        log_level = logging.DEBUG
-    else:
-        log_level = logging.INFO
+    log_level = logging.DEBUG if args.debug else logging.INFO
     logging.basicConfig(level=log_level,
                         format='%(asctime)s %(levelname)s %(message)s',  # ISO 8601 time format
                         datefmt='%Y-%m-%dT%H:%M:%S%z',
                         stream=sys.stderr)
 
-    if len(conf.sentinels) != 0:
-        # support for IPv6 addresses: {::1}:6379
-        sentinels = list((''.join(i.split(':')[0:-1]), int(i.split(':')[-1])) for i in conf.sentinels)
-        redis_host, redis_port = None, None
-    else:
-        redis_host, redis_port = ''.join(conf.redis.split(':')[0:-1]), int(conf.redis.split(':')[-1])
-        sentinels = None
-
     if args.force_get_primary_lock:
         try:
-            redis_conn = get_redis_connection(sentinels=sentinels, host=redis_host, port=redis_port, db_num=conf.redis_db_num)
+            redis_conn = get_redis_connection(sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
         except redis.RedisError:
             logging.debug('Failed to connect to Redis, sleeping')
             time.sleep(conf.timeout_sec)
 
-        logging.debug('Force set key value to current hostname with expiration')
+        logging.debug('Force set key value to current system id with expiration')
         # https://redis.io/commands/set
         # nx    do not set value if already set
         # ex    expire time in seconds
@@ -130,22 +134,22 @@ if __name__ == '__main__':
             # Not doing this before because hostname may change while the program is running
             system_id = get_system_id()
             try:
-                redis_conn = get_redis_connection(sentinels=sentinels, host=redis_host, port=redis_port, db_num=conf.redis_db_num)
+                redis_conn = get_redis_connection(sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
             except redis.RedisError:
                 logging.debug('Failed to connect to Redis, sleeping')
                 time.sleep(conf.timeout_sec)
                 continue
             try:
-                logging.debug('Trying to set key value to current hostname with expiration if key does not exist')
+                logging.debug('Trying to set key value to current system id with expiration if key does not exist')
                 # https://redis.io/commands/set
                 # nx    do not set value if already set
                 # ex    expire time in seconds
                 redis_conn.set(name=conf.server_key_name, value=system_id, nx=True, ex=conf.timeout_sec)
                 if redis_conn.get(name=conf.server_key_name).decode('utf-8') == system_id:
-                    logging.debug('Key value equals hostname, updating lock expiration period')
+                    logging.debug('Key value equals current system id, updating lock expiration period')
                     redis_conn.expire(name=conf.server_key_name, time=conf.timeout_sec)
                     if conf.flag_file_is_primary is not None:
-                        logging.debug('Key value equals hostname, updating modification time for flag file ' + conf.flag_file_is_primary)
+                        logging.debug('Key value equals current system id, updating modification time for flag file ' + conf.flag_file_is_primary)
                         # NOTE: script will not fail if flag_file is not updated
                         try:
                             if os.path.exists(conf.flag_file_is_primary):
@@ -171,16 +175,16 @@ if __name__ == '__main__':
             except redis.RedisError:
                 pass
     elif hasattr(args, 'command') and hasattr(args, 'lock_key'):
-        hostname = get_system_id()
+        system_id = get_system_id()
         lock_key_name = conf.lock_key_prefix + args.lock_key
         try:
-            redis_conn = get_redis_connection(sentinels=sentinels, host=redis_host, port=redis_port, db_num=conf.redis_db_num)
+            redis_conn = get_redis_connection(sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
         except redis.RedisError:
             logging.debug('Failed to connect to Redis')
             raise
         server_key_value = redis_conn.get(conf.server_key_name)
         # If we are on primary server
-        if server_key_value is not None and server_key_value.decode('utf-8') == hostname:
+        if server_key_value is not None and server_key_value.decode('utf-8') == system_id:
             if redis_conn.get(lock_key_name) is None:
                 logging.debug('Starting command')
                 process = Popen(args.command, shell=True)
@@ -205,6 +209,5 @@ if __name__ == '__main__':
             logging.warning('Key ' + conf.server_key_name + ' does not match, not a primary server, so not doing anything')
             redis_conn.close()
     else:
-        parser.print_help()
-        logging.error('Should use one of --hold-primary-lock or --command and --lock-key')
+        logging.error('Incorrect options. Check --help')
         sys.exit(1)
