@@ -25,7 +25,7 @@ flag_file_is_primary: /tmp/cron-ha-primary-flag
 
 Start on each server:
 
-`python cron-ha.py --config cron-ha.yml --hold-primary-lock`
+`python cron-ha.py --config cron-ha.yml --cycle-try-get-primary-lock`
 
 First server that gets lock in redis will become primary. On that server file `/tmp/cron-ha-primary-flag` will be created and it's modification time will be updated every `timeout_sec`.
 
@@ -34,6 +34,10 @@ Now add to each server crontab or systemd timer:
 `python cron-ha.py --config cron-ha.yml --command 'foo --bar --baz' --lock-key foo-bar-baz`
 
 The command will run only on primary server. Script exit code will be the same as command exit code.
+
+Run this on another server to switch it to primary:
+
+`python cron-ha.py --config cron-ha.yml --force-get-primary-lock`
 
 Use `--debug` option to see in details what's going on.
 

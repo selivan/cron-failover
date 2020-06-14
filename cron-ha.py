@@ -30,9 +30,12 @@ class ObjectView(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run commands only on selected server, with failover to new if old one became offline. After switching servers new command will not run until the old one is working and holding lock. Uses locks in a single redis instance. Can use sentinels to connect to redis.")
-    parser.add_argument('--config', default='cron-ha.yml', help='Configuration in yaml format.')
+    parser.add_argument('--config', default='cron-ha.yml', help='Configuration in yaml format. Default: cron-ha.yml')
     parser.add_argument('--debug', action='store_true', default=False, help='Print debug messages')
-    parser.add_argument('--hold-primary-lock', action='store_true', default=False, help='Run daemon holding lock in redis saying this server should be used to run commands. If redis connection fails it infinitely tries to reconnect and get lock.')
+    parser.add_argument('--cycle-try-get-primary-lock', action='store_true', default=False,
+                        help='Run daemon holding lock in redis saying this server should be used to run commands. If redis connection fails it infinitely tries to reconnect and get lock.')
+    parser.add_argument('--force-get-primary-lock', action='store_true', default=False,
+                        help='Get primary lock for this server.')
     parser.add_argument('--command', help='Run this command holding lock in redis. Exit code is the same as command exit code.')
     parser.add_argument('--lock-key', help='Unique key used for this command lock')
     args = parser.parse_args()
@@ -58,7 +61,38 @@ if __name__ == '__main__':
     else:
         redis_host, redis_port = ''.join(conf.redis.split(':')[0:-1]), int(conf.redis.split(':')[-1])
 
-    if args.hold_primary_lock:
+    if args.force_get_primary_lock:
+        hostname = gethostname()
+        try:
+            # Get redis master from sentinels
+            if 'sentinels' in locals():
+                logging.debug('Asking sentinels for master address')
+                sentinel_conn = Sentinel(sentinels, socket_timeout=0.2)
+                redis_host, redis_port = sentinel_conn.discover_master(conf.sentinel_master_name)
+            logging.debug('Connecting to redis')
+            redis_conn = redis.Redis(host=redis_host, port=redis_port, db=conf.redis_db_num)
+        except redis.RedisError:
+            logging.debug('Failed to connect to Redis, sleeping')
+            time.sleep(conf.timeout_sec)
+
+        logging.debug('Force set key value to current hostname with expiration')
+        # https://redis.io/commands/set
+        # nx    do not set value if already set
+        # ex    expire time in seconds
+        redis_conn.set(name=conf.server_key_name, value=hostname, nx=False, ex=conf.timeout_sec)
+        redis_conn.close()
+        # NOTE: script will not fail if flag_file is not updated
+        try:
+            if os.path.exists(conf.flag_file_is_primary):
+                os.utime(conf.flag_file_is_primary)
+            else:
+                flag_file = open(conf.flag_file_is_primary, 'w')
+                flag_file.write('')
+                flag_file.close()
+        except Exception as e:
+            logging.error('Failed to update flag file modification time')
+            logging.error(str(e))
+    elif args.cycle_try_get_primary_lock:
         while True:
             # Not doing this before because hostname may change while the program is running
             hostname = gethostname()
@@ -93,8 +127,10 @@ if __name__ == '__main__':
                                 flag_file.write('')
                                 flag_file.close()
                         except Exception as e:
-                            logging.error('Failed to uptime flag file modification time')
+                            logging.error('Failed to update flag file modification time')
                             logging.error(str(e))
+                else:
+                    logging.debug('Key value does not point to this server as primary')
                 logging.debug('Sleeping')
                 time.sleep(conf.timeout_sec*0.8)
                 redis_conn.close()
