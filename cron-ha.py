@@ -4,6 +4,8 @@ import argparse
 import time
 import logging
 import sys
+import os
+import os.path
 from socket import gethostname
 from subprocess import Popen, PIPE
 
@@ -19,6 +21,7 @@ default_config = {
     'timeout_sec': 5,
     'server_key_name': 'cron:server_name',
     'lock_key_prefix': 'cron:lock:',
+    'flag_file_is_primary': None
 }
 
 class ObjectView(object):
@@ -46,7 +49,8 @@ if __name__ == '__main__':
         log_level = logging.INFO
     logging.basicConfig(level=log_level,
                         format='%(asctime)s %(levelname)s %(message)s',  # ISO 8601 time format
-                        datefmt='%Y-%m-%dT%H:%M:%S%z')
+                        datefmt='%Y-%m-%dT%H:%M:%S%z',
+                        stream=sys.stderr)
 
     if len(conf.sentinels) != 0:
         # support for IPv6 addresses: {::1}:6379
@@ -76,8 +80,21 @@ if __name__ == '__main__':
                 # ex    expire time in seconds
                 redis_conn.set(name=conf.server_key_name, value=hostname, nx=True, ex=conf.timeout_sec)
                 if redis_conn.get(name=conf.server_key_name).decode('utf-8') == hostname:
-                    logging.debug('Key value equals hostname, updating expiration period')
+                    logging.debug('Key value equals hostname, updating lock expiration period')
                     redis_conn.expire(name=conf.server_key_name, time=conf.timeout_sec)
+                    if conf.flag_file_is_primary is not None:
+                        logging.debug('Key value equals hostname, updating modification time for flag file ' + conf.flag_file_is_primary)
+                        # NOTE: script will not fail if flag_file is not updated
+                        try:
+                            if os.path.exists(conf.flag_file_is_primary):
+                                os.utime(conf.flag_file_is_primary)
+                            else:
+                                flag_file = open(conf.flag_file_is_primary, 'w')
+                                flag_file.write('')
+                                flag_file.close()
+                        except Exception as e:
+                            logging.error('Failed to uptime flag file modification time')
+                            logging.error(str(e))
                 logging.debug('Sleeping')
                 time.sleep(conf.timeout_sec*0.8)
                 redis_conn.close()

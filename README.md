@@ -20,7 +20,7 @@ redis_db_num: 0
 timeout_sec: 5
 server_key_name: 'cron:server_name'
 lock_key_prefix: 'cron:lock:'
-
+flag_file_is_primary: /tmp/cron-ha-primary-flag
 ```
 
 Start on each server:
