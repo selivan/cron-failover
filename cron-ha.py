@@ -24,6 +24,11 @@ default_config = {
     'flag_file_is_primary': None
 }
 
+config_search_paths = [
+    '/etc/cron-ha/cron-ha.yml',
+    'cron-ha.yml'
+]
+
 
 class ObjectView(object):
     def __init__(self, d):
@@ -34,14 +39,16 @@ def get_cmdline_args():
     """Parse command line arguments and return namespace"""
     parser = argparse.ArgumentParser(
         description="Run commands only on selected server, with failover to new if old one became offline. After switching servers new command will not run until the old one is working and holding lock. Uses locks in a single redis instance. Can use sentinels to connect to redis.")
-    parser.add_argument('--config', default='cron-ha.yml',
-                        help='Configuration in yaml format. Default: cron-ha.yml')
+    parser.add_argument('--config', default='',
+                        help='Configuration in yaml format. Default: ' + ' '.join(config_search_paths))
     parser.add_argument('--debug', action='store_true',
                         default=False, help='Print debug messages')
     parser.add_argument('--cycle-try-get-primary-lock', action='store_true', default=False,
                         help='Run daemon holding lock in redis saying this server should be used to run commands. If redis connection fails it infinitely tries to reconnect and get lock.')
     parser.add_argument('--force-get-primary-lock', action='store_true', default=False,
                         help='Get primary lock for this server.')
+    parser.add_argument('--check-is-primary', action='store_true', default=False,
+                        help='Check if this server is primary.')
     parser.add_argument(
         '--command', help='Run this command holding lock in redis. Exit code is the same as command exit code.')
     parser.add_argument(
@@ -60,6 +67,8 @@ def get_cmdline_args():
 def get_config(config_file_path, default_config_dict):
     """Return object with configuration values in attributes:
         conf.debug instead conf['debug']"""
+    logging.info('Parsing configuration file: ' + config_file_path)
+
     conf = default_config_dict
     with open(config_file_path, 'r') as config_file:
         conf.update(yaml.safe_load(config_file))
@@ -117,9 +126,20 @@ def get_system_id():
 
 
 if __name__ == '__main__':
+
     args = get_cmdline_args()
-    conf = get_config(config_file_path=args.config,
-                      default_config_dict=default_config)
+    conf = None
+    if args.config != '':
+        conf = get_config(config_file_path=args.config,
+                          default_config_dict=default_config)
+    else:
+        for i in config_search_paths:
+            if os.path.isfile(i):
+                conf = get_config(config_file_path=i,
+                                  default_config_dict=default_config)
+    if conf is None:
+        logging.error('Failed to find a config file.')
+        sys.exit(1)
 
     log_level = logging.DEBUG if args.debug else logging.INFO
     logging.basicConfig(level=log_level,
@@ -128,13 +148,27 @@ if __name__ == '__main__':
                         datefmt='%Y-%m-%dT%H:%M:%S%z',
                         stream=sys.stderr)
 
-    if args.force_get_primary_lock:
+    if args.check_is_primary:
         try:
             redis_conn = get_redis_connection(
                 sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
-        except redis.RedisError:
-            logging.debug('Failed to connect to Redis, sleeping')
-            time.sleep(conf.timeout_sec)
+        except Exception as e:
+            logging.error('Failed to connect to Redis')
+            sys.exit(1)
+
+        if redis_conn.get(name=conf.server_key_name).decode('utf-8') == get_system_id():
+            print('YES')
+            sys.exit(0)
+        else:
+            print('NO')
+            sys.exit(1)
+    elif args.force_get_primary_lock:
+        try:
+            redis_conn = get_redis_connection(
+                sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
+        except Exception as e:
+            logging.error('Failed to connect to Redis')
+            sys.exit(1)
 
         logging.debug(
             'Force set key value to current system id with expiration')
@@ -162,7 +196,7 @@ if __name__ == '__main__':
             try:
                 redis_conn = get_redis_connection(
                     sentinels=conf.sentinels, host=conf.redis_host, port=conf.redis_port, db_num=conf.redis_db_num)
-            except redis.RedisError:
+            except Exception as e:
                 logging.debug('Failed to connect to Redis, sleeping')
                 time.sleep(conf.timeout_sec)
                 continue
