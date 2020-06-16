@@ -128,7 +128,15 @@ def get_system_id():
 if __name__ == '__main__':
 
     args = get_cmdline_args()
+
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    logging.basicConfig(level=log_level,
+                        format='%(asctime)s %(levelname)s %(message)s',
+                        # ISO 8601 time format
+                        datefmt='%Y-%m-%dT%H:%M:%S%z',
+                        stream=sys.stderr)
     conf = None
+
     if args.config != '':
         conf = get_config(config_file_path=args.config,
                           default_config_dict=default_config)
@@ -140,13 +148,6 @@ if __name__ == '__main__':
     if conf is None:
         logging.error('Failed to find a config file.')
         sys.exit(1)
-
-    log_level = logging.DEBUG if args.debug else logging.INFO
-    logging.basicConfig(level=log_level,
-                        format='%(asctime)s %(levelname)s %(message)s',
-                        # ISO 8601 time format
-                        datefmt='%Y-%m-%dT%H:%M:%S%z',
-                        stream=sys.stderr)
 
     if args.check_is_primary:
         try:
