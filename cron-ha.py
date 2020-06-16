@@ -7,7 +7,6 @@ import sys
 import os.path
 import socket
 from subprocess import Popen, TimeoutExpired
-import signal
 
 import yaml
 import redis
