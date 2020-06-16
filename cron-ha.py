@@ -125,6 +125,26 @@ def get_system_id():
     return socket.gethostname() + '-' + ipv4 + '-' + ipv6
 
 
+def create_or_update_flag_file(path):
+    """Create flag file or update its modification time.
+       Do not crash if failed to do that"""
+    # NOTE: script will not fail if flag_file is not updated
+    try:
+        if os.path.exists(path):
+            logging.debug(
+                'Updating modification time for flag file ' + path)
+            os.utime(path)
+        else:
+            logging.info(
+                'Creating flag file ' + path)
+            with open(path, 'w') as f:
+                f.write('')
+    except Exception as e:
+        logging.error(
+            'Failed to update flag file modification time')
+        logging.error(str(e))
+
+
 if __name__ == '__main__':
 
     args = get_cmdline_args()
@@ -180,15 +200,7 @@ if __name__ == '__main__':
                        value=get_system_id(), nx=False, ex=conf.timeout_sec)
         redis_conn.close()
         # NOTE: script will not fail if flag_file is not updated
-        try:
-            if os.path.exists(conf.flag_file_is_primary):
-                os.utime(conf.flag_file_is_primary)
-            else:
-                with open(conf.flag_file_is_primary, 'w') as f:
-                    f.write('')
-        except Exception as e:
-            logging.error('Failed to update flag file modification time')
-            logging.error(str(e))
+        create_or_update_flag_file(path=conf.flag_file_is_primary)
     elif args.cycle_try_get_primary_lock:
         while True:
             # Not doing this before because hostname may change while the program is running
@@ -215,27 +227,15 @@ if __name__ == '__main__':
                         name=conf.server_key_name, time=conf.timeout_sec)
                     if conf.flag_file_is_primary is not None:
                         # NOTE: script will not fail if flag_file is not updated
-                        try:
-                            if os.path.exists(conf.flag_file_is_primary):
-                                logging.debug(
-                                    'Key value equals current system id, updating modification time for flag file ' + conf.flag_file_is_primary)
-                                os.utime(conf.flag_file_is_primary)
-                            else:
-                                logging.info(
-                                    'Key value equals current system id, creating flag file ' + conf.flag_file_is_primary)
-                                with open(conf.flag_file_is_primary, 'w') as f:
-                                    f.write('')
-                        except Exception as e:
-                            logging.error(
-                                'Failed to update flag file modification time')
-                            logging.error(str(e))
+                        create_or_update_flag_file(
+                            path=conf.flag_file_is_primary)
                 else:
                     logging.debug(
                         'Key value does not point to this server as primary')
                     try:
                         if os.path.exists(conf.flag_file_is_primary):
-                            logging.debug('Removing flag file ' +
-                                          conf.flag_file_is_primary)
+                            logging.info('Removing flag file ' +
+                                         conf.flag_file_is_primary)
                             os.remove(conf.flag_file_is_primary)
                     except Exception as e:
                         pass
@@ -243,7 +243,8 @@ if __name__ == '__main__':
                 time.sleep(conf.timeout_sec*0.8)
                 redis_conn.close()
             except redis.RedisError:
-                logging.error('Failed to update key in redis. Sleeping before next try.')
+                logging.error(
+                    'Failed to update key in redis. Sleeping before next try.')
                 time.sleep(conf.timeout_sec * 0.8)
     elif hasattr(args, 'command') and hasattr(args, 'lock_key'):
         system_id = get_system_id()
