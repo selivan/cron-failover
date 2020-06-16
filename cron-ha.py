@@ -184,9 +184,8 @@ if __name__ == '__main__':
             if os.path.exists(conf.flag_file_is_primary):
                 os.utime(conf.flag_file_is_primary)
             else:
-                flag_file = open(conf.flag_file_is_primary, 'w')
-                flag_file.write('')
-                flag_file.close()
+                with open(conf.flag_file_is_primary, 'w') as f:
+                    f.write('')
         except Exception as e:
             logging.error('Failed to update flag file modification time')
             logging.error(str(e))
@@ -215,17 +214,17 @@ if __name__ == '__main__':
                     redis_conn.expire(
                         name=conf.server_key_name, time=conf.timeout_sec)
                     if conf.flag_file_is_primary is not None:
-                        logging.debug(
-                            'Key value equals current system id, updating modification time for flag file ' + conf.flag_file_is_primary)
                         # NOTE: script will not fail if flag_file is not updated
                         try:
                             if os.path.exists(conf.flag_file_is_primary):
+                                logging.debug(
+                                    'Key value equals current system id, updating modification time for flag file ' + conf.flag_file_is_primary)
                                 os.utime(conf.flag_file_is_primary)
                             else:
-                                flag_file = open(
-                                    conf.flag_file_is_primary, 'w')
-                                flag_file.write('')
-                                flag_file.close()
+                                logging.info(
+                                    'Key value equals current system id, creating flag file ' + conf.flag_file_is_primary)
+                                with open(conf.flag_file_is_primary, 'w') as f:
+                                    f.write('')
                         except Exception as e:
                             logging.error(
                                 'Failed to update flag file modification time')
