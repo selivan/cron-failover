@@ -177,10 +177,10 @@ if __name__ == '__main__':
             sys.exit(1)
 
         if redis_conn.get(name=conf.server_key_name).decode('utf-8') == get_system_id():
-            print('YES')
+            print('YES\n')
             sys.exit(0)
         else:
-            print('NO')
+            print('NO\n')
             sys.exit(1)
     elif args.force_get_primary_lock:
         try:
