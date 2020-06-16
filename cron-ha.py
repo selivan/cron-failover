@@ -67,7 +67,7 @@ def get_cmdline_args():
 def get_config(config_file_path, default_config_dict):
     """Return object with configuration values in attributes:
         conf.debug instead conf['debug']"""
-    logging.info('Parsing configuration file: ' + config_file_path)
+    logging.debug('Parsing configuration file: ' + config_file_path)
 
     conf = default_config_dict
     with open(config_file_path, 'r') as config_file:
