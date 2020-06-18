@@ -51,4 +51,10 @@ If redis becomes unavailable, for example server got offline, command will conti
 
 That server will become primary. Flag file will be created on it and deleted on old server. Command will not start on the new server before command with the same `--lock-key` on the old server finishes and releases the lock.
 
+### Check if server is primary
+
+`python cron-ha.py --config cron-ha.yml --check-is-primary`
+
+Prints YES/NO and return code is 0 on YES, non-zero on NO.
+
 **P.S.** If this code is useful for you - don't forget to put a star on it's [github repo](https://github.com/selivan/cron-failover).
